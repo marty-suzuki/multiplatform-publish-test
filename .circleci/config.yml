@@ -1,0 +1,39 @@
+version: 2.1
+
+references:
+  android_docker_image: &android_docker_image
+    docker:
+      - image: cimg/android:2022.12
+        environment:
+          TZ: "Asia/Tokyo"
+
+executors:
+  android_small:
+    <<: *android_docker_image
+    resource_class: small
+
+  android_large:
+    <<: *android_docker_image
+    resource_class: large
+
+jobs:
+  deploy-shared:
+    executor: android_large
+    steps:
+      - checkout
+      - run:
+          name: release shared to GitHub Maven Registory
+          command: |
+            export SHARED_VERSION=`echo $CIRCLE_TAG|awk -F '-' '{print($2)}'`
+            ./gradlew :shared:publishAllPublicationsToGitHubPackagesRepository --stacktrace
+
+workflows:
+  version: 2
+  release-shared:
+    jobs:
+      - deploy-shared:
+          filters:
+            tags:
+              only: /^shared-.*/
+            branches:
+              ignore: /.*/
