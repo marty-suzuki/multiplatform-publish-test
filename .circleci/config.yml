@@ -16,11 +16,54 @@ executors:
     <<: *android_docker_image
     resource_class: large
 
+  ios_medium:
+    macos:
+      xcode: 14.2.0
+      resource_class: medium
+
+commands:
+  setup:
+    parameters:
+      isMacOS:
+        type: boolean
+        default: false
+    steps:
+      - when:
+          condition: << parameters.isMacOS >>
+          steps:
+            - run:
+                name: Setup environment variables
+                command: |
+                  mkdir /usr/local/share/android
+                  mkdir /usr/local/share/android/sdk
+                  echo 'export ANDROID_HOME="/usr/local/share/android/sdk"' >> $BASH_ENV
+                  echo 'export ANDROID_SDK_ROOT="/usr/local/share/android/sdk"' >> $BASH_ENV
+            - run:
+                name: Install Android sdk
+                command: |
+                  mkdir $ANDROID_SDK_ROOT/cmdline-tools
+                  curl -o cmdline-tools.zip "https://dl.google.com/android/repository/commandlinetools-mac-8092744_latest.zip"
+                  unzip "cmdline-tools.zip" -d $ANDROID_SDK_ROOT/cmdline-tools
+                  rm cmdline-tools.zip
+                  mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/tools
+                  mkdir ~/.android
+            - run:
+                name: Setup environment variables
+                command: |
+                  echo "export PATH=\$PATH:/usr/local/share/android/sdk/cmdline-tools/tools/bin" >> $BASH_ENV
+            - run:
+                name: Accept license
+                command: |
+                  yes | sdkmanager --licenses || if [ $? -ne '141' ]; then exit $?; fi; #Captures SIGPIPE 141 error but still allow repeating "y" to accept all licenses
+                  yes | sdkmanager --update || if [ $? -ne '141' ]; then exit $?; fi; #Captures SIGPIPE 141 error but still allow repeating "y" to accept all licenses
+
 jobs:
   deploy-shared:
-    executor: android_large
+    executor: ios_medium
     steps:
       - checkout
+      - setup:
+          isMacOS: true
       - run:
           name: release shared to GitHub Maven Registory
           command: |
